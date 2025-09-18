@@ -38,10 +38,12 @@ Add to your `pom.xml`:
 Update your JDBC URL to use P6Spy:
 ```
 # Before
-jdbc:postgresql://localhost:5432/mydb
+driverClassName=org.postgresql.Driver
+jdbcUrl=jdbc:postgresql://localhost:5432/mydb
 
-# After  
-jdbc:p6spy:postgresql://localhost:5432/mydb
+# After 
+driverClassName=com.p6spy.engine.spy.P6SpyDriver
+jdbcUrl=jdbc:p6spy:postgresql://localhost:5432/mydb
 ```
 
 Optional: Create `src/main/resources/spy.properties` for P6Spy configuration:

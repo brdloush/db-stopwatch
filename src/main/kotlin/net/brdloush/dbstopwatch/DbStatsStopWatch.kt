@@ -17,10 +17,10 @@ import kotlin.math.roundToInt
 
 
 @Suppress("unused")
-class DbStatsStopWatch(
-    private val id: String = ""
+class DbStatsStopWatch @JvmOverloads constructor(
+    private val id: String = "",
+    private val logFunction: java.util.function.Consumer<String>? = null
 ) {
-
     private var taskList: MutableList<TaskInfo>? = mutableListOf()
     private var startTimeNanos: Long = 0
     private var currentTaskName: String? = null
@@ -46,6 +46,8 @@ class DbStatsStopWatch(
      * Marks the starting point for P6Spy query capture.
      */
     fun start(taskName: String) {
+        logFunction?.accept("$id / \"$taskName\" - START")
+
         check(currentTaskName == null) { "Can't start DbStatsStopWatch: it's already running" }
 
         currentTaskName = taskName
@@ -70,6 +72,7 @@ class DbStatsStopWatch(
      */
     fun stop() {
         check(currentTaskName != null) { "Can't stop DbStatsStopWatch: it's not running" }
+        logFunction?.accept("$id / \"$currentTaskName\" - END")
 
         val lastTime = System.nanoTime() - startTimeNanos
         totalTimeNanos += lastTime
@@ -86,6 +89,9 @@ class DbStatsStopWatch(
             updateCount = blockStats.updateCount.toLong(),
             updateMaxMs = blockStats.updateMaxMs.toDouble(),
             updateTotalMs = blockStats.updateTotalMs,
+            batchCount = blockStats.batchCount.toLong(),
+            batchMaxMs = blockStats.batchMaxMs.toDouble(),
+            batchTotalMs = blockStats.batchTotalMs,
         )
 
         taskList?.add(lastTaskInfo!!)
@@ -183,7 +189,7 @@ class DbStatsStopWatch(
             }.padEnd(12)
 
             sb.append(line)
-            sb.append("$unitName  %       Q-cnt    Q-max     Q-total     U-cnt    U-max     U-total     DB%     Task name\n")
+            sb.append("$unitName  %       Q-cnt    Q-max     Q-total     U-cnt    U-max     U-total     B-cnt    B-max     B-total     DB%     Task name\n")
             sb.append(line)
 
             var digits = total.indexOf('.')
@@ -198,7 +204,7 @@ class DbStatsStopWatch(
                     nf.format(task.getTime(timeUnit))
                 }
 
-                val taskPercentage = pf.format(task.getTimeSeconds() / getTotalTimeSeconds())
+                val taskPercentage = pf.format(task.getTimeMillis().toDouble() / getTotalTimeMillis().toDouble())
 
                 val queryCount = task.queryCount
                 val (queryMaxTimeDisplay, queryTotalTimeDisplay) = formatTimeDisplay(
@@ -210,8 +216,13 @@ class DbStatsStopWatch(
                     updateCount, task.updateMaxMs, task.updateTotalMs
                 )
 
-                val dbPercentage = if (updateCount > 0 || queryCount > 0) {
-                    val dbPercent = ((task.updateTotalMs.toDouble() + task.queryTotalMs.toDouble()) / task.getTimeMillis()) * 100
+                val batchCount = task.batchCount
+                val (batchMaxTimeDisplay, batchTotalTimeDisplay) = formatTimeDisplay(
+                    batchCount, task.batchMaxMs, task.batchTotalMs
+                )
+
+                val dbPercentage = if (updateCount > 0 || queryCount > 0 || batchCount > 0 ) {
+                    val dbPercent = ((task.updateTotalMs.toDouble() + task.queryTotalMs.toDouble() + task.batchTotalMs.toDouble()) / task.getTimeMillis()) * 100
                     "%-8.0f".format(dbPercent)
                 } else {
                     "%-8s".format("-")
@@ -225,6 +236,9 @@ class DbStatsStopWatch(
                 sb.append("%-9d".format(updateCount))
                 sb.append("%-10s".format(updateMaxTimeDisplay))
                 sb.append("%-12s".format(updateTotalTimeDisplay))
+                sb.append("%-9d".format(batchCount))
+                sb.append("%-10s".format(batchMaxTimeDisplay))
+                sb.append("%-12s".format(batchTotalTimeDisplay))
                 sb.append(dbPercentage)
                 sb.append(task.taskName).append('\n')
             }
@@ -289,6 +303,9 @@ class DbStatsStopWatch(
         val updateCount: Long,
         val updateMaxMs: Double,
         val updateTotalMs: Long,
+        val batchCount: Long,
+        val batchMaxMs: Double,
+        val batchTotalMs: Long,
     ) {
 
         /**

@@ -1,6 +1,7 @@
 package net.brdloush.dbstopwatch
 
 import com.p6spy.engine.common.PreparedStatementInformation
+import com.p6spy.engine.common.StatementInformation
 import com.p6spy.engine.event.JdbcEventListener
 
 import java.sql.SQLException
@@ -50,6 +51,18 @@ class P6SpyStatsCollector : JdbcEventListener() {
         }
     }
 
+    override fun onAfterExecuteBatch(
+        statementInformation: StatementInformation?,
+        timeElapsedNanos: Long,
+        updateCounts: IntArray?,
+        e: SQLException?
+    ) {
+        val sql = statementInformation!!.sql
+        if (sql != null && !isSystemQuery(sql)) {
+            threadLocalStats.get().recordBatch(timeElapsedNanos / 1_000_000, sql)
+        }
+    }
+
     private fun isSystemQuery(sql: String): Boolean {
         val cleanSql = sql.trim().lowercase()
         return cleanSql.startsWith("select 1") ||
@@ -61,8 +74,10 @@ class P6SpyStatsCollector : JdbcEventListener() {
     private class QueryStatsBuffer {
         private val queries = mutableListOf<StatementExecution>()
         private val updates = mutableListOf<StatementExecution>()
+        private val batches = mutableListOf<StatementExecution>()
         private var blockStartIndexQueries = 0
         private var blockStartIndexUpdates = 0
+        private var blockStartIndexBatches = 0
 
         fun recordQuery(executionTimeMs: Long, sql: String) {
             queries.add(StatementExecution(executionTimeMs, sql))
@@ -72,14 +87,20 @@ class P6SpyStatsCollector : JdbcEventListener() {
             updates.add(StatementExecution(executionTimeMs, sql))
         }
 
+        fun recordBatch(executionTimeMs: Long, sql: String) {
+            batches.add(StatementExecution(executionTimeMs, sql))
+        }
+
         fun markBlockStart() {
             blockStartIndexQueries = queries.size
             blockStartIndexUpdates = updates.size
+            blockStartIndexBatches = batches.size
         }
 
         fun getBlockStats(): BlockStats {
             val blockQueries = queries.subList(blockStartIndexQueries, queries.size)
             val blockUpdates = updates.subList(blockStartIndexUpdates, updates.size)
+            val blockBatches = batches.subList(blockStartIndexBatches, batches.size)
             return BlockStats(
                 queryCount = blockQueries.size,
                 queryTotalMs = blockQueries.sumOf { it.executionTimeMs },
@@ -89,12 +110,17 @@ class P6SpyStatsCollector : JdbcEventListener() {
                 updateTotalMs = blockUpdates.sumOf { it.executionTimeMs },
                 updateMaxMs = blockUpdates.maxOfOrNull { it.executionTimeMs } ?: 0L,
                 updateSqls = blockUpdates.map { it.sql },
+                batchCount = blockBatches.size,
+                batchTotalMs = blockBatches.sumOf { it.executionTimeMs },
+                batchMaxMs = blockBatches.maxOfOrNull { it.executionTimeMs } ?: 0L,
+                batchSqls = blockBatches.map { it.sql },
             )
         }
 
         fun reset() {
             queries.clear()
             updates.clear()
+            batches.clear()
             blockStartIndexQueries = 0
         }
     }
@@ -112,6 +138,10 @@ class P6SpyStatsCollector : JdbcEventListener() {
         val updateCount: Int,
         val updateTotalMs: Long,
         val updateMaxMs: Long,
-        val updateSqls: List<String>
+        val updateSqls: List<String>,
+        val batchCount: Int,
+        val batchTotalMs: Long,
+        val batchMaxMs: Long,
+        val batchSqls: List<String>
     )
 }
