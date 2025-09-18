@@ -23,7 +23,7 @@ Add to your `pom.xml`:
     <dependency>
         <groupId>net.brdloush</groupId>
         <artifactId>db-stopwatch</artifactId>
-        <version>1.0.0</version>
+        <version>1.1.0</version>
     </dependency>
     <dependency>
         <groupId>p6spy</groupId>
@@ -60,10 +60,13 @@ filter=false
 
 ```kotlin
 import net.brdloush.dbstopwatch.DbStatsStopWatch
+import org.slf4j.LoggerFactory
+
+private val log = LoggerFactory.getLogger(javaClass)
 
 fun processOrders() {
-    val stopwatch = DbStatsStopWatch("Order Processing")
-    
+    val stopwatch = DbStatsStopWatch("Order Processing", log::info)
+
     stopwatch.start("Loading pending orders")
     val orders = orderRepository.findPendingOrders()
     
@@ -84,13 +87,19 @@ fun processOrders() {
 
 ```
 DbStatsStopWatch 'Order Processing': 0.847 seconds
------------------------------------------------------------------------------------------------------------------------------------
-Seconds       %       Q-cnt    Q-max     Q-total     U-cnt    U-max     U-total     DB%     Task name
------------------------------------------------------------------------------------------------------------------------------------
-0.312         37%     15       23        156         0        -         -           50      Loading pending orders
-0.089         11%     0        -         -           0        -         -           -       Validating orders  
-0.446         53%     5        89        234         12       45        198         97      Updating order status
+----------------------------------------------------------------------------------------------------------------------------------
+Seconds       %       Q-cnt    Q-max     Q-total     U-cnt    U-max     U-total     B-cnt    B-max     B-total     DB%     Task name
+----------------------------------------------------------------------------------------------------------------------------------
+0.312         37%     15       23        156         0        -         -           3        12        45          61      Loading pending orders
+0.089         11%     0        -         -           0        -         -           0        -         -           -       Validating orders  
+0.446         53%     5        89        234         12       45        198         2        67        134         86      Updating order status
 ```
+
+Here:
+
+- `Q-cnt`, `Q-max` and `Q-total` are related to queries
+- `U-cnt`, `U-max` and `U-total` are related to non-batched inserts/updates/deletes
+- `B-cnt`, `B-max` and `B-total` are related to batched executions
 
 ## API Reference
 
