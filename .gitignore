@@ -3,6 +3,14 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+# mill
+/out/
+
+# others
+.lsp
+.bsp
+.clj-kondo
+
 ### IntelliJ IDEA ###
 .idea
 

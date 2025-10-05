@@ -1,0 +1,48 @@
+package build
+
+import mill.*
+import mill.api.Task
+import mill.javalib.*
+import mill.javalib.publish.*
+
+object `db-stopwatch` extends JavaModule, PublishModule {
+  def publishVersion = "2.0.0"
+
+  def pomSettings = PomSettings(
+    description = "A java library that combines precise timing measurements with comprehensive database query statistics, built on top of P6Spy",
+    organization = "net.brdloush",
+    url = "https://github.com/brdloush/db-stopwatch",
+    licenses = Seq(License.`Apache-2.0`),
+    versionControl = VersionControl.github("brdloush", "db-stopwatch"),
+    developers = Seq(Developer("brdloush", "Tomáš Brejla", "https://github.com/brdloush"))
+  )
+
+  def jvmId = "temurin:21.0.8"
+
+  def javacOptions = Seq("-proc:none")
+  def javadocOptions = Seq("-quiet")
+
+  def mvnDeps = Seq(
+    mvn"p6spy:p6spy:3.9.1"
+  )
+
+  // Test configuration
+  object test extends JavaTests, TestModule.Junit5 {
+    def mvnDeps = Seq(
+      mvn"org.junit.jupiter:junit-jupiter:5.10.0",
+      mvn"com.h2database:h2:2.4.240",
+      mvn"org.mockito:mockito-core:5.20.0",
+      mvn"org.springframework:spring-jdbc:6.2.11",
+      mvn"org.slf4j:slf4j-simple:2.0.17"
+    )
+
+    def forkArgs: Task.Simple[Seq[String]] = Task {
+      val mockitoJar = compileClasspath()
+        .find(_.path.toString.contains("mockito-core"))
+        .map(_.path)
+        .getOrElse(throw new Exception("mockito-core jar not found"))
+
+      Seq(s"-javaagent:${mockitoJar}", "-Xshare:off")
+    }
+  }
+}

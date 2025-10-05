@@ -1,6 +1,6 @@
 # DB Stopwatch
 
-A Kotlin library (also usable from java applications) that combines precise timing measurements with comprehensive database query statistics, built on top of P6Spy. Perfect for performance monitoring, optimization, and debugging database-heavy applications.
+A java library that combines precise timing measurements with comprehensive database query statistics, built on top of P6Spy. Perfect for performance monitoring, optimization, and debugging database-heavy applications.
 
 ## Features
 
@@ -23,7 +23,7 @@ Add to your `pom.xml`:
     <dependency>
         <groupId>net.brdloush</groupId>
         <artifactId>db-stopwatch</artifactId>
-        <version>1.1.0</version>
+        <version>2.0.0</version>
     </dependency>
     <dependency>
         <groupId>p6spy</groupId>
@@ -58,35 +58,43 @@ filter=false
 
 ### 3. Start Measuring
 
-```kotlin
-import net.brdloush.dbstopwatch.DbStatsStopWatch
-import org.slf4j.LoggerFactory
+```java
+import net.brdloush.dbstopwatch.DbStopWatch;
+import org.slf4j.LoggerFactory;
 
-private val log = LoggerFactory.getLogger(javaClass)
 
-fun processOrders() {
-    val stopwatch = DbStatsStopWatch("Order Processing", log::info)
+@Service
+public class OrderService {
 
-    stopwatch.start("Loading pending orders")
-    val orders = orderRepository.findPendingOrders()
-    
-    stopwatch.stopAndStart("Validating orders")
-    val validOrders = orders.filter { validateOrder(it) }
-    
-    stopwatch.stopAndStart("Updating order status")
-    validOrders.forEach { orderRepository.updateStatus(it.id, PROCESSED) }
-    
-    stopwatch.stop()
-    
-    // Beautiful performance report
-    logger.info("\n${stopwatch.prettyPrint()}")
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+
+    public void processOrders() {
+
+        var sw = new DbStopWatch("processOrders", log::info); // logging function is optional; it helps to visually split the statements/queries logged by p6spy 
+
+        sw.start("Loading pending orders");
+        val orders = orderRepository.findPendingOrders();
+
+        sw.stopAndStart("Validating orders");
+        val validOrders = orders.filter(Order::validateOrder);
+
+        sw.stopAndStart("Updating order status");
+        validOrders.forEach(it -> orderRepository.updateStatus(it.id, PROCESSED));
+        
+        // alternative 1: 
+        sw.finish(); // if logger function was provided, this will pretty-print the result
+        
+        // alternative 2: (sw.finish does this internally)
+        // sw.stop();
+        // log.info(sw.prettyPrint());
+    }
 }
 ```
 
 ## Example Output
 
 ```
-DbStatsStopWatch 'Order Processing': 0.847 seconds
+DbStopWatch 'Order Processing': 0.847 seconds
 ----------------------------------------------------------------------------------------------------------------------------------
 Seconds       %       Q-cnt    Q-max     Q-total     U-cnt    U-max     U-total     B-cnt    B-max     B-total     DB%     Task name
 ----------------------------------------------------------------------------------------------------------------------------------
@@ -103,24 +111,31 @@ Here:
 
 ## API Reference
 
-### DbStatsStopWatch
+### DbStopWatch
 
 Main class for performance monitoring with database statistics.
 
 #### Constructor
-```kotlin
-DbStatsStopWatch(id: String = "")
+
+```java
+import java.util.function.Consumer;
+
+DbStopWatch(String id);
+
+DbStopWatch(String id, Consumer<String> loggingFunction);
 ```
 
 #### Core Methods
 
-| Method | Description |
-|--------|-------------|
-| `start(taskName: String = "")` | Start timing a named task |
-| `stop()` | Stop current task and capture statistics |
-| `stopAndStart(taskName: String)` | Stop current task and immediately start a new one |
-| `isRunning(): Boolean` | Check if stopwatch is currently running |
-| `currentTaskName(): String?` | Get name of currently running task |
+| Method                           | Description                                                                    |
+|----------------------------------|--------------------------------------------------------------------------------|
+| `start(taskName: String = "")`   | Start timing a named task                                                      |
+| `stop()`                         | Stop current task and capture statistics                                       |
+| `stopAndStart(taskName: String)` | Stop current task and immediately start a new one                              |
+| `finish()`                       | Stop current task and pretty print into log (if logging function was supplied) |
+| `isRunning(): Boolean`           | Check if stopwatch is currently running                                        |
+| `currentTaskName(): String?`     | Get name of currently running task                                             |
+
 
 #### Results & Reporting
 
@@ -135,8 +150,7 @@ DbStatsStopWatch(id: String = "")
 
 ## Requirements
 
-- **Java**: 8 or higher
-- **Kotlin**: 1.8 or higher  
+- **Java**: 21 or higher
 - **P6Spy**: 3.9.1 or higher
 
 ## Database Support
